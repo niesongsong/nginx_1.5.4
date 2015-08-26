@@ -683,15 +683,11 @@ static void ngx_http_dump_location(ngx_http_core_loc_conf_t *clcf)
         clcf->exact_match, clcf->noregex);
 }
 
-static void ngx_http_dump_location_queue(ngx_http_core_loc_conf_t *pclcf)
+static void ngx_http_dump_location_queue(ngx_queue_t *locations)
 {
-    ngx_queue_t                 *locations, *q;
+    ngx_queue_t                 *q;
     ngx_http_location_queue_t   *lq;
     ngx_http_core_loc_conf_t    *clcf;
-
-    locations = pclcf->locations;
-
-    //ngx_http_dump_location(pclcf);
 
     if (locations == NULL) {
         return ;
@@ -708,12 +704,6 @@ static void ngx_http_dump_location_queue(ngx_http_core_loc_conf_t *pclcf)
         clcf = lq->exact ? lq->exact : lq->inclusive;
 
         ngx_http_dump_location(clcf);
-
-//         if (clcf->locations) {
-//             printf("<------\n");
-//             ngx_http_dump_location_queue(clcf);
-//             printf("------>\n");
-//         }
     }
 
     printf("------------------>\n");
@@ -739,14 +729,12 @@ ngx_http_init_locations(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf,
         return NGX_OK;
     }
 
-    //ngx_http_dump_location_queue(pclcf);
-
     ngx_queue_sort(locations, ngx_http_cmp_locations);
 
     /*sorted*/
     printf("sorted: \n");
 
-    ngx_http_dump_location_queue(pclcf);
+    ngx_http_dump_location_queue(pclcf->locations);
 
     named = NULL;
     n = 0;
@@ -821,6 +809,9 @@ ngx_http_init_locations(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf,
         *clcfp = NULL;
 
         ngx_queue_split(locations, named, &tail);
+
+        printf("after drop named locations:\n");
+        ngx_http_dump_location_queue(pclcf->locations);
     }
 
 #if (NGX_PCRE)
@@ -847,6 +838,9 @@ ngx_http_init_locations(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf,
         *clcfp = NULL;
 
         ngx_queue_split(locations, regex, &tail);
+
+        printf("after drop regex locations:\n");
+        ngx_http_dump_location_queue(pclcf->locations);
     }
 
 #endif
@@ -889,8 +883,14 @@ ngx_http_init_static_location_trees(ngx_conf_t *cf,
     if (ngx_http_join_exact_locations(cf, locations) != NGX_OK) {
         return NGX_ERROR;
     }
+    
+    printf("after merge duplicate locations:\n");
+    ngx_http_dump_location_queue(pclcf->locations);
 
     ngx_http_create_locations_list(locations, ngx_queue_head(locations));
+
+    printf("after create locations:\n");
+    ngx_http_dump_location_queue(pclcf->locations);
 
     pclcf->static_locations = ngx_http_create_locations_tree(cf, locations, 0);
     if (pclcf->static_locations == NULL) {
